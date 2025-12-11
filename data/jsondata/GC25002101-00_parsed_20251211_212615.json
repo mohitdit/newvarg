@@ -1,0 +1,63 @@
+{
+  "state": "VA",
+  "courtName": "Radford General District Court",
+  "searchFipsCode": 750,
+  "download_date": "2025-12-11T15:56:15Z",
+  "Case/Defendant Information": {
+    "Case Number": "GC25002101-00",
+    "Filed Date": "12/10/2025",
+    "Locality": "COMMONWEALTH OF VA",
+    "Name": "INGRAM, KIARA JOVANI",
+    "Status": "Other",
+    "Defense Attorney": "",
+    "Address": "RADFORD, VA 24141",
+    "AKA1": "",
+    "AKA2": "",
+    "Gender": "Female",
+    "Race": "White",
+    "DOB": "11/06/****"
+  },
+  "Charge Information": {
+    "Charge": "DESTRUCT PROP W/INTENT <$1000",
+    "Offense Tracking/Processing #": "750GM2500002857",
+    "Summons #": "",
+    "Code Section": "18.2-137(B)(I)",
+    "Case Type": "Misdemeanor",
+    "Class": "1",
+    "Offense Date": "10/31/2025",
+    "Arrest Date": "",
+    "Complainant": "COX, AD; RCPD",
+    "Amended Charge": "",
+    "Amended Code": "",
+    "Amended Case Type": ""
+  },
+  "Hearing Information": [
+    {
+      "Date": "01/08/2026",
+      "Time": "08:30 AM",
+      "Result": "",
+      "Hearing Type": "",
+      "Courtroom": "",
+      "Plea": "",
+      "Continuance Code": ""
+    }
+  ],
+  "Service/Process": [],
+  "Disposition Information": {
+    "Final Disposition": "",
+    "Sentence Time": "",
+    "Sentence Suspended Time": "",
+    "Probation Type": "",
+    "Probation Time": "",
+    "Probation Starts": "",
+    "Operator License Suspension Time": "",
+    "Restriction Effective Date": "",
+    "Operator License Restriction Codes": "",
+    "Fine": "",
+    "Costs": "",
+    "Fine/Costs Due": "",
+    "Fine/Costs Paid": "",
+    "Fine/Costs Paid Date": "",
+    "VASAP": ""
+  }
+}

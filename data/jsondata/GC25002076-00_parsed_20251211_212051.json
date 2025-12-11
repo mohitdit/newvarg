@@ -1,0 +1,72 @@
+{
+  "state": "VA",
+  "courtName": "Radford General District Court",
+  "searchFipsCode": 750,
+  "download_date": "2025-12-11T15:50:51Z",
+  "Case/Defendant Information": {
+    "Case Number": "GC25002076-00",
+    "Filed Date": "11/25/2025",
+    "Locality": "COMMONWEALTH OF VA",
+    "Name": "DUNCAN, JOHNATHAN O",
+    "Status": "Released On Summons",
+    "Defense Attorney": "",
+    "Address": "PULASKI, VA 24301",
+    "AKA1": "",
+    "AKA2": "",
+    "Gender": "Male",
+    "Race": "White",
+    "DOB": "04/29/****"
+  },
+  "Charge Information": {
+    "Charge": "SHOPLIFT/ ALTER MERCH<$1000",
+    "Offense Tracking/Processing #": "",
+    "Summons #": "",
+    "Code Section": "18.2-103",
+    "Case Type": "Misdemeanor",
+    "Class": "1",
+    "Offense Date": "11/21/2025",
+    "Arrest Date": "",
+    "Complainant": "ELLIS, J; RCPD",
+    "Amended Charge": "",
+    "Amended Code": "",
+    "Amended Case Type": ""
+  },
+  "Hearing Information": [
+    {
+      "Date": "01/22/2026",
+      "Time": "10:00 AM",
+      "Result": "",
+      "Hearing Type": "",
+      "Courtroom": "",
+      "Plea": "",
+      "Continuance Code": ""
+    },
+    {
+      "Date": "12/18/2025",
+      "Time": "08:30 AM",
+      "Result": "",
+      "Hearing Type": "Appoint Attorney",
+      "Courtroom": "",
+      "Plea": "",
+      "Continuance Code": ""
+    }
+  ],
+  "Service/Process": [],
+  "Disposition Information": {
+    "Final Disposition": "",
+    "Sentence Time": "",
+    "Sentence Suspended Time": "",
+    "Probation Type": "",
+    "Probation Time": "",
+    "Probation Starts": "",
+    "Operator License Suspension Time": "",
+    "Restriction Effective Date": "",
+    "Operator License Restriction Codes": "",
+    "Fine": "",
+    "Costs": "",
+    "Fine/Costs Due": "",
+    "Fine/Costs Paid": "",
+    "Fine/Costs Paid Date": "",
+    "VASAP": ""
+  }
+}

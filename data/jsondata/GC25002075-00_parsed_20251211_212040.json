@@ -1,0 +1,63 @@
+{
+  "state": "VA",
+  "courtName": "Radford General District Court",
+  "searchFipsCode": 750,
+  "download_date": "2025-12-11T15:50:40Z",
+  "Case/Defendant Information": {
+    "Case Number": "GC25002075-00",
+    "Filed Date": "11/25/2025",
+    "Locality": "COMMONWEALTH OF VA",
+    "Name": "AUBIN, SEBASTIAN",
+    "Status": "Released On Summons",
+    "Defense Attorney": "",
+    "Address": "MIDLOTHIAN, VA 23112",
+    "AKA1": "",
+    "AKA2": "",
+    "Gender": "Male",
+    "Race": "White",
+    "DOB": "09/08/****"
+  },
+  "Charge Information": {
+    "Charge": "PURCHASE/POSSESS ALCOHOL",
+    "Offense Tracking/Processing #": "750GM2500002811",
+    "Summons #": "",
+    "Code Section": "4.1-305",
+    "Case Type": "Misdemeanor",
+    "Class": "1",
+    "Offense Date": "11/23/2025",
+    "Arrest Date": "",
+    "Complainant": "WIDNER, HA; RCPD",
+    "Amended Charge": "",
+    "Amended Code": "",
+    "Amended Case Type": ""
+  },
+  "Hearing Information": [
+    {
+      "Date": "01/22/2026",
+      "Time": "08:30 AM",
+      "Result": "",
+      "Hearing Type": "",
+      "Courtroom": "",
+      "Plea": "",
+      "Continuance Code": ""
+    }
+  ],
+  "Service/Process": [],
+  "Disposition Information": {
+    "Final Disposition": "",
+    "Sentence Time": "",
+    "Sentence Suspended Time": "",
+    "Probation Type": "",
+    "Probation Time": "",
+    "Probation Starts": "",
+    "Operator License Suspension Time": "",
+    "Restriction Effective Date": "",
+    "Operator License Restriction Codes": "",
+    "Fine": "",
+    "Costs": "",
+    "Fine/Costs Due": "",
+    "Fine/Costs Paid": "",
+    "Fine/Costs Paid Date": "",
+    "VASAP": ""
+  }
+}

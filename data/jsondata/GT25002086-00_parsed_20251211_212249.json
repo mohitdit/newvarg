@@ -1,0 +1,63 @@
+{
+  "state": "VA",
+  "courtName": "Radford General District Court",
+  "searchFipsCode": 750,
+  "download_date": "2025-12-11T15:52:49Z",
+  "Case/Defendant Information": {
+    "Case Number": "GT25002086-00",
+    "Filed Date": "12/01/2025",
+    "Locality": "RADFORD GENERAL DIST",
+    "Name": "HILL, ZAVION QUALE",
+    "Status": "Released On Summons",
+    "Defense Attorney": "",
+    "Address": "RADFORD, VA 24141",
+    "AKA1": "",
+    "AKA2": "",
+    "Gender": "Male",
+    "Race": "Black",
+    "DOB": "03/31/****"
+  },
+  "Charge Information": {
+    "Charge": "NO DRIVERS LICENSE",
+    "Offense Tracking/Processing #": "",
+    "Summons #": "",
+    "Code Section": "46.2-300",
+    "Case Type": "Misdemeanor",
+    "Class": "1",
+    "Offense Date": "11/29/2025",
+    "Arrest Date": "",
+    "Complainant": "TURNER; RCPD",
+    "Amended Charge": "",
+    "Amended Code": "",
+    "Amended Case Type": ""
+  },
+  "Hearing Information": [
+    {
+      "Date": "01/22/2026",
+      "Time": "08:30 AM",
+      "Result": "",
+      "Hearing Type": "",
+      "Courtroom": "",
+      "Plea": "",
+      "Continuance Code": ""
+    }
+  ],
+  "Service/Process": [],
+  "Disposition Information": {
+    "Final Disposition": "",
+    "Sentence Time": "",
+    "Sentence Suspended Time": "",
+    "Probation Type": "",
+    "Probation Time": "",
+    "Probation Starts": "",
+    "Operator License Suspension Time": "",
+    "Restriction Effective Date": "",
+    "Operator License Restriction Codes": "",
+    "Fine": "",
+    "Costs": "",
+    "Fine/Costs Due": "",
+    "Fine/Costs Paid": "",
+    "Fine/Costs Paid Date": "",
+    "VASAP": ""
+  }
+}
