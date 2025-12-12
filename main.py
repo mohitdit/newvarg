@@ -5,43 +5,44 @@ from datetime import datetime
 from scrapers.virginia_scraper import VirginiaScraper
 from utils.logger import log
 from utils.json_grouper import group_and_merge_json_files
+from api.api import ApiClient
 
 # ----------------------------------------
-# HARDCODED CONFIGURATIONS (examples)
+# HARDCODED CONFIGURATIONS (example)  - for testing
 # ----------------------------------------
-CIVIL_CONFIG = {
-    "courtFips": "177",
-    "courtName": "Virginia Beach General District Court",
-    "searchFipsCode": 177,
-    "searchDivision": "V",
-    "docketNumber": "9120",  # Starting number (becomes 0009120 -> 0009120)
-    "docketYear": 2025,
-    "caseType": "civil"  # Will use GV prefix
-}
+# CIVIL_CONFIG = {
+#     "courtFips": "177",
+#     "courtName": "Virginia Beach General District Court",
+#     "searchFipsCode": 177,
+#     "searchDivision": "V",
+#     "docketNumber": "9120",  # Starting number (becomes 0009120 -> 0009120)
+#     "docketYear": 2025,
+#     "caseType": "civil"  # Will use GV prefix
+# }
 
-CRIMINAL_CONFIG = {
-    "courtFips": "001",
-    "courtName": "Accomack General District Court",
-    "searchFipsCode": "001",
-    "searchDivision": "T",
-    "docketNumber": "9792",  # Starting number
-    "docketYear": 2025,
-    "caseType": "criminal"  # Will use GC and GT prefixes
-}
+# CRIMINAL_CONFIG = {
+#     "courtFips": "001",
+#     "courtName": "Accomack General District Court",
+#     "searchFipsCode": "001",
+#     "searchDivision": "T",
+#     "docketNumber": "9792",  # Starting number
+#     "docketYear": 2025,
+#     "caseType": "criminal"  # Will use GC and GT prefixes
+# }
 
-# Example API object (you're using this directly as ACTIVE_CONFIG in your snippet)
-API_EXAMPLE = {
-    "county_no": 1,
-    "county_name": "Accomack General District Court",
-    "docket_type": "GT",
-    "docket_year": 2025,
-    "docket_number": "010198",
-}
+# # Example API object (you're using this directly as ACTIVE_CONFIG in your snippet)
+# API_EXAMPLE = {
+#     "county_no": 1,
+#     "county_name": "Accomack General District Court",
+#     "docket_type": "GT",
+#     "docket_year": 2025,
+#     "docket_number": "010198",
+# }
 
-# Choose which configuration to use
-# ACTIVE_CONFIG = CIVIL_CONFIG
-# ACTIVE_CONFIG = CRIMINAL_CONFIG
-ACTIVE_CONFIG = API_EXAMPLE  # for testing an API-style object
+# # Choose which configuration to use
+# # ACTIVE_CONFIG = CIVIL_CONFIG
+# # ACTIVE_CONFIG = CRIMINAL_CONFIG
+# ACTIVE_CONFIG = API_EXAMPLE  # for testing an API-style object
 
 # Output directories
 OUTPUT_DIR = "data"
@@ -79,42 +80,39 @@ def normalize_config_from_api(obj: dict) -> dict:
     """
     config = dict(obj)  # shallow copy
 
-    # Normalize county/fips fields
-    if 'county_no' in config:
-        padded = pad_3_digits(config['county_no'])
-        config['county_no'] = padded
+    # Normalize county/fips fields - countyNo becomes 3-digit string
+    if 'countyNo' in config:
+        padded = pad_3_digits(config['countyNo'])
+        config['countyNo'] = padded
         config['searchFipsCode'] = padded
         config['courtFips'] = padded
-    else:
-        if 'searchFipsCode' in config:
-            config['searchFipsCode'] = pad_3_digits(config['searchFipsCode'])
-            config['courtFips'] = config.get('courtFips', config['searchFipsCode'])
-            config['courtFips'] = pad_3_digits(config['courtFips'])
-            config['searchFipsCode'] = config['courtFips']
-
-    # Map docket fields to expected keys
-    if 'docket_number' in config and 'docketNumber' not in config:
-        config['docketNumber'] = config['docket_number']
-    if 'docket_year' in config and 'docketYear' not in config:
-        config['docketYear'] = config['docket_year']
-    if 'docket_number' not in config and 'docketNumber' not in config and 'docket_number' in config:
-        config['docketNumber'] = config['docket_number']
-
-    if 'county_name' in config and 'courtName' not in config:
-        config['courtName'] = config['county_name']
-
-    # If API gives docket_type (GC/GT/GV) force caseType and searchDivision accordingly
-    if 'docket_type' in config:
-        dt = str(config['docket_type']).upper()
+    
+    # Map API fields to expected fields
+    if 'countyName' in config and 'courtName' not in config:
+        config['courtName'] = config['countyName']
+    
+    if 'stateAbbreviation' in config and 'state' not in config:
+        config['state'] = config['stateAbbreviation']
+    
+    # Handle docket_type (GC/GT/GV) and set caseType and searchDivision
+    if 'docketType' in config:
+        dt = str(config['docketType']).upper()
         if dt in ('GC', 'GT'):
             config['caseType'] = 'criminal'
             # IMPORTANT: for criminal GC/GT we must use searchDivision "T"
             config['searchDivision'] = 'T'
         elif dt == 'GV':
             config['caseType'] = 'civil'
-            # civil default division might be 'V' but don't override if provided
-            config['searchDivision'] = config.get('searchDivision', 'V')
-
+            # civil uses division 'V'
+            config['searchDivision'] = 'V'
+    
+    # Convert docketNumber to integer and add 1 to start from next number
+    if 'docketNumber' in config:
+        try:
+            config['docketNumber'] = int(config['docketNumber']) + 1
+        except:
+            pass
+    
     # Final defaults if not set
     config['caseType'] = config.get('caseType', 'civil')
     config['searchDivision'] = config.get('searchDivision', 'V')
@@ -153,6 +151,37 @@ def print_summary(results: list, config: dict):
 
 
 # ----------------------------------------
+# API INTEGRATION
+# ----------------------------------------
+def fetch_job_from_api():
+    """
+    Fetch job details from the API endpoint
+    Returns the courtOfficeDetails from the API response
+    """
+    try:
+        log.info("="*60)
+        log.info("FETCHING JOB FROM API")
+        log.info("="*60)
+        
+        api_client = ApiClient()
+        response = api_client.post(f"VA_Downloader_Job_SQS_GET",{})
+        
+        log.info("API Response:")
+        log.info(json.dumps(response, indent=2))
+        log.info("="*60)
+        
+        if response and 'courtOfficeDetails' in response:
+            return response['courtOfficeDetails']
+        else:
+            log.error("No courtOfficeDetails found in API response")
+            return None
+            
+    except Exception as e:
+        log.error(f"Error fetching job from API: {e}")
+        return None
+
+
+# ----------------------------------------
 # MAIN EXECUTION
 # ----------------------------------------
 async def scrape_single_config(config: dict):
@@ -171,6 +200,7 @@ async def scrape_single_config(config: dict):
     log.info(f"Starting Docket Number: {config.get('docketNumber')}")
     log.info(f"Year: {config.get('docketYear')}")
     log.info(f"Search Division: {config.get('searchDivision')}")
+    log.info(f"Docket Type: {config.get('docketType')}")
     log.info("="*60)
     
     # Initialize scraper
@@ -185,43 +215,23 @@ async def scrape_single_config(config: dict):
     return results
 
 
-async def scrape_multiple_configs(configs: list):
-    """
-    Scrape cases for multiple configurations sequentially
-    """
-    all_results = []
-    
-    for idx, config in enumerate(configs, 1):
-        log.info(f"\n{'#'*60}")
-        log.info(f"PROCESSING CONFIGURATION {idx}/{len(configs)}")
-        log.info(f"{'#'*60}\n")
-        
-        results = await scrape_single_config(config)
-        all_results.extend(results)
-        
-        # Delay between different configurations
-        if idx < len(configs):
-            log.info("Waiting 10 seconds before next configuration...")
-            await asyncio.sleep(10)
-    
-    return all_results
-
-
 async def main():
     """
     Main entry point for the scraper
+    Fetches job from API and processes it
     """
     # Ensure output directories exist
     ensure_directories()
     
-    # Single configuration mode
-    if isinstance(ACTIVE_CONFIG, dict):
-        await scrape_single_config(ACTIVE_CONFIG)
+    # Fetch job from API
+    job_config = fetch_job_from_api()
     
-    # Example: If you receive an array from API you could use:
-    # api_configs = [API_EXAMPLE, ...]
-    # normalized = [normalize_config_from_api(c) for c in api_configs]
-    # await scrape_multiple_configs(normalized)
+    if not job_config:
+        log.error("Failed to fetch job from API. Exiting.")
+        return
+    
+    # Scrape with the API configuration
+    await scrape_single_config(job_config)
     
     # Group and merge JSON files after scraping
     log.info("\n" + "="*60)
@@ -229,7 +239,6 @@ async def main():
     log.info("="*60)
     
     try:
-        from utils.json_grouper import group_and_merge_json_files
         grouped_results = group_and_merge_json_files(JSON_DIR)
         
         log.info(f"✅ Successfully created {len(grouped_results)} grouped records")
