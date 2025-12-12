@@ -6,7 +6,7 @@ from scrapers.virginia_scraper import VirginiaScraper
 from utils.logger import log
 from utils.json_grouper import group_and_merge_json_files
 from api.api import ApiClient
-
+import shutil
 # ----------------------------------------
 # HARDCODED CONFIGURATIONS (example)  - for testing
 # ----------------------------------------
@@ -58,6 +58,48 @@ def ensure_directories():
     os.makedirs(HTML_DIR, exist_ok=True)
     os.makedirs(JSON_DIR, exist_ok=True)
     log.info(f"Output directories ready: {HTML_DIR}, {JSON_DIR}")
+
+def manage_processed_data():
+    """
+    Move files from groupeddata to processeddata before starting new job
+    This prevents duplicate insertions from previous runs
+    """
+    import shutil
+    
+    grouped_dir = os.path.join(OUTPUT_DIR, "groupeddata")
+    processed_dir = os.path.join(OUTPUT_DIR, "processeddata")
+    
+    # Create processeddata directory if it doesn't exist
+    os.makedirs(processed_dir, exist_ok=True)
+    
+    # Check if groupeddata exists and has files
+    if os.path.exists(grouped_dir):
+        files = [f for f in os.listdir(grouped_dir) if f.endswith('.json')]
+        
+        if files:
+            log.info(f"Found {len(files)} files in groupeddata folder")
+            log.info("Moving files to processeddata folder...")
+            
+            # Move each file to processeddata
+            for filename in files:
+                src = os.path.join(grouped_dir, filename)
+                dst = os.path.join(processed_dir, filename)
+                
+                # If file already exists in processeddata, add timestamp to avoid overwrite
+                if os.path.exists(dst):
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    name, ext = os.path.splitext(filename)
+                    dst = os.path.join(processed_dir, f"{name}_{timestamp}{ext}")
+                
+                shutil.move(src, dst)
+                log.info(f"  Moved: {filename}")
+            
+            log.info(f"✅ Successfully moved {len(files)} files to processeddata")
+        else:
+            log.info("No files found in groupeddata folder")
+    else:
+        log.info("groupeddata folder does not exist yet")
 
 
 def pad_3_digits(value):
@@ -156,7 +198,7 @@ def print_summary(results: list, config: dict):
 def fetch_job_from_api():
     """
     Fetch job details from the API endpoint
-    Returns the courtOfficeDetails from the API response
+    Returns the courtOfficeDetails from the API response, or None if no jobs available
     """
     try:
         log.info("="*60)
@@ -170,6 +212,16 @@ def fetch_job_from_api():
         log.info(json.dumps(response, indent=2))
         log.info("="*60)
         
+        # Check if response indicates no jobs available
+        if response and 'message' in response:
+            message = response['message']
+            if isinstance(message, dict):
+                code = message.get('code')
+                if code == 202:  # No jobs available
+                    log.info("No jobs available in queue (Code 202)")
+                    return None
+        
+        # Check for successful job response
         if response and 'courtOfficeDetails' in response:
             return response['courtOfficeDetails']
         else:
@@ -218,120 +270,135 @@ def fetch_job_from_api():
 async def main():
     """
     Main entry point for the scraper
-    Fetches job from API and processes it
+    Continuously fetches and processes jobs until queue is empty
     """
-    # Ensure output directories exist
-    ensure_directories()
-    
-    # Fetch job from API
-    job_config = fetch_job_from_api()
-    
-    if not job_config:
-        log.error("Failed to fetch job from API. Exiting.")
-        return
-    
-    # Store original job config for API calls
-    original_config = dict(job_config)
-    api_client = ApiClient()
-    
-    # Normalize config for scraping
-    config = normalize_config_from_api(job_config)
-    
-    log.info("="*60)
-    log.info("STARTING VIRGINIA COURT SCRAPER")
-    log.info("="*60)
-    log.info(f"Court: {config.get('courtName')}")
-    log.info(f"FIPS Code: {config.get('courtFips') or config.get('searchFipsCode')}")
-    log.info(f"Case Type: {config.get('caseType','').upper()}")
-    log.info(f"Starting Docket Number: {config.get('docketNumber')}")
-    log.info(f"Year: {config.get('docketYear')}")
-    log.info(f"Search Division: {config.get('searchDivision')}")
-    log.info(f"Docket Type: {config.get('docketType')}")
-    log.info("="*60)
-    
-    # Initialize scraper
-    scraper = VirginiaScraper(config=config)
-    
-    # Run the scraper
-    results, last_successful_number, error_occurred = await scraper.run_scraper()
-    
-    # Print summary
-    print_summary(results, config)
-    
-    # Group and merge JSON files after scraping
-    log.info("\n" + "="*60)
-    log.info("GROUPING AND MERGING JSON FILES")
-    log.info("="*60)
-    
-    grouped_results = []
-    try:
-        grouped_results = group_and_merge_json_files(JSON_DIR)
-        log.info(f"✅ Successfully created {len(grouped_results)} grouped records")
-        log.info(f"📁 Grouped files saved to: {os.path.join(OUTPUT_DIR, 'groupeddata')}")
-    except Exception as e:
-        log.error(f"Error during grouping: {e}")
-    
-    # Insert grouped records into MongoDB
-    if grouped_results:
-        log.info("\n" + "="*60)
-        log.info("INSERTING RECORDS INTO DATABASE")
+    while True:
+        # Ensure output directories exist
+        ensure_directories()
+        
+        # Move any existing grouped files to processed folder
+        log.info("="*60)
+        log.info("CHECKING FOR PREVIOUS RUN DATA")
+        log.info("="*60)
+        manage_processed_data()
         log.info("="*60)
         
-        try:
-            insert_response = api_client.insert_records(grouped_results)
-            log.info(f"✅ Insert API Response: {insert_response}")
-            log.info(f"✅ Inserted {insert_response.get('body', {}).get('insertedCount', 0)} records")
-        except Exception as e:
-            log.error(f"❌ Error inserting records: {e}")
-            error_occurred = True
-    
-    # Handle error recovery or completion
-    if error_occurred:
-        log.info("\n" + "="*60)
-        log.info("ERROR RECOVERY - ADDING JOB BACK TO QUEUE")
+        # Fetch job from API
+        job_config = fetch_job_from_api()
+        
+        if not job_config:
+            log.info("="*60)
+            log.info("NO MORE JOBS IN QUEUE - SCRAPER SHUTTING DOWN")
+            log.info("="*60)
+            break
+        
+        # Store original job config for API calls
+        original_config = dict(job_config)
+        api_client = ApiClient()
+        
+        # Normalize config for scraping
+        config = normalize_config_from_api(job_config)
+        
+        log.info("="*60)
+        log.info("STARTING VIRGINIA COURT SCRAPER")
+        log.info("="*60)
+        log.info(f"Court: {config.get('courtName')}")
+        log.info(f"FIPS Code: {config.get('courtFips') or config.get('searchFipsCode')}")
+        log.info(f"Case Type: {config.get('caseType','').upper()}")
+        log.info(f"Starting Docket Number: {config.get('docketNumber')}")
+        log.info(f"Year: {config.get('docketYear')}")
+        log.info(f"Search Division: {config.get('searchDivision')}")
+        log.info(f"Docket Type: {config.get('docketType')}")
         log.info("="*60)
         
-        # Add job back to queue with next docket number after last successful
-        next_docket = last_successful_number + 1
+        # Initialize scraper
+        scraper = VirginiaScraper(config=config)
         
-        recovery_job = {
-            "stateName": original_config.get("stateName", "VIRGINIA"),
-            "stateAbbreviation": original_config.get("stateAbbreviation", "VA"),
-            "countyNo": original_config.get("countyNo"),
-            "countyName": original_config.get("countyName"),
-            "docketNumber": str(next_docket).zfill(6),
-            "docketYear": original_config.get("docketYear"),
-            "docketType": original_config.get("docketType")
-        }
+        # Run the scraper
+        results, last_successful_number, error_occurred = await scraper.run_scraper()
         
-        try:
-            add_response = api_client.add_job_to_queue(recovery_job)
-            log.info(f"✅ Add Job API Response: {add_response}")
-            log.info(f"📝 Job added back to queue starting at docket: {recovery_job['docketNumber']}")
-        except Exception as e:
-            log.error(f"❌ Error adding job back to queue: {e}")
-    
-    else:
-        # Job completed successfully - update docket number
+        # Print summary
+        print_summary(results, config)
+        
+        # Group and merge JSON files after scraping
         log.info("\n" + "="*60)
-        log.info("JOB COMPLETED SUCCESSFULLY - UPDATING DOCKET NUMBER")
+        log.info("GROUPING AND MERGING JSON FILES")
         log.info("="*60)
         
+        grouped_results = []
         try:
-            update_response = api_client.update_docket_number(
-                state_name=original_config.get("stateName", "VIRGINIA"),
-                county_no=original_config.get("countyNo"),
-                county_name=original_config.get("countyName"),
-                docket_number=last_successful_number,
-                docket_year=original_config.get("docketYear"),
-                docket_type=original_config.get("docketType")
-            )
-            log.info(f"✅ Update API Response: {update_response}")
-            log.info(f"✅ Updated last successful docket to: {str(last_successful_number).zfill(6)}")
+            grouped_results = group_and_merge_json_files(JSON_DIR)
+            log.info(f"✅ Successfully created {len(grouped_results)} grouped records")
+            log.info(f"📁 Grouped files saved to: {os.path.join(OUTPUT_DIR, 'groupeddata')}")
         except Exception as e:
-            log.error(f"❌ Error updating docket number: {e}")
-    
-    log.info("="*60)
+            log.error(f"Error during grouping: {e}")
+        
+        # Insert grouped records into MongoDB
+        if grouped_results:
+            log.info("\n" + "="*60)
+            log.info("INSERTING RECORDS INTO DATABASE")
+            log.info("="*60)
+            
+            try:
+                insert_response = api_client.insert_records(grouped_results)
+                log.info(f"✅ Insert API Response: {insert_response}")
+                inserted_count = insert_response.get('body', {}).get('insertedCount', 0)
+                log.info(f"✅ Inserted {inserted_count} records (from {len(grouped_results)} grouped records)")
+            except Exception as e:
+                log.error(f"❌ Error inserting records: {e}")
+                error_occurred = True
+        
+        # Handle error recovery or completion
+        if error_occurred:
+            log.info("\n" + "="*60)
+            log.info("ERROR RECOVERY - ADDING JOB BACK TO QUEUE")
+            log.info("="*60)
+            
+            # Add job back to queue with last successful docket number
+            recovery_job = {
+                "stateName": original_config.get("stateName", "VIRGINIA"),
+                "stateAbbreviation": original_config.get("stateAbbreviation", "VA"),
+                "countyNo": original_config.get("countyNo"),
+                "countyName": original_config.get("countyName"),
+                "docketNumber": str(last_successful_number).zfill(6),
+                "docketYear": original_config.get("docketYear"),
+                "docketType": original_config.get("docketType")
+            }
+            
+            try:
+                add_response = api_client.add_job_to_queue(recovery_job)
+                log.info(f"✅ Add Job API Response: {add_response}")
+                log.info(f"📝 Job added back to queue starting at docket: {recovery_job['docketNumber']}")
+            except Exception as e:
+                log.error(f"❌ Error adding job back to queue: {e}")
+        
+        else:
+            # Job completed successfully - update docket number
+            log.info("\n" + "="*60)
+            log.info("JOB COMPLETED SUCCESSFULLY - UPDATING DOCKET NUMBER")
+            log.info("="*60)
+            
+            try:
+                update_response = api_client.update_docket_number(
+                    state_name=original_config.get("stateName", "VIRGINIA"),
+                    county_no=original_config.get("countyNo"),
+                    county_name=original_config.get("countyName"),
+                    docket_number=last_successful_number,
+                    docket_year=original_config.get("docketYear"),
+                    docket_type=original_config.get("docketType")
+                )
+                log.info(f"✅ Update API Response: {update_response}")
+                log.info(f"✅ Updated last successful docket to: {str(last_successful_number).zfill(6)}")
+            except Exception as e:
+                log.error(f"❌ Error updating docket number: {e}")
+        
+        log.info("="*60)
+        log.info("JOB COMPLETED - FETCHING NEXT JOB...")
+        log.info("="*60)
+        
+        # Small delay before next job
+        await asyncio.sleep(2)
+
 
 # ----------------------------------------
 # ENTRY POINT
