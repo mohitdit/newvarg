@@ -7,6 +7,57 @@ from utils.logger import log
 from utils.json_grouper import group_and_merge_json_files
 from api.api import ApiClient
 import shutil
+import time
+from vpn.vpnbot import SurfsharkManager
+
+# ----------------------------------------
+# VPN MANAGEMENT GLOBALS
+# ----------------------------------------
+vpn_manager = None
+last_vpn_reconnect_time = None
+
+def initialize_vpn():
+    """Initialize VPN manager and connect"""
+    global vpn_manager, last_vpn_reconnect_time
+    vpn_manager = SurfsharkManager()
+    log.info("🔌 Initializing VPN connection...")
+    vpn_manager.reconnect()
+    last_vpn_reconnect_time = time.time()
+    log.info(f"✅ VPN connected at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+def should_reconnect_vpn():
+    """Check if VPN should reconnect based on time interval"""
+    global last_vpn_reconnect_time
+    
+    if last_vpn_reconnect_time is None:
+        return True
+    
+    interval_minutes = vpn_manager.get_reconnect_interval_minutes()
+    elapsed_seconds = time.time() - last_vpn_reconnect_time
+    elapsed_minutes = elapsed_seconds / 60
+    
+    if elapsed_minutes >= interval_minutes:
+        log.info(f"⏰ VPN reconnection needed: {elapsed_minutes:.1f} minutes elapsed (limit: {interval_minutes} minutes)")
+        return True
+    
+    return False
+
+def reconnect_vpn_if_needed():
+    """Reconnect VPN and update timestamp"""
+    global last_vpn_reconnect_time
+    
+    log.info("\n" + "="*60)
+    log.info("🔄 VPN RECONNECTION IN PROGRESS")
+    log.info("="*60)
+    log.info("⏸️  All operations paused during VPN reconnection...")
+    
+    vpn_manager.reconnect()
+    last_vpn_reconnect_time = time.time()
+    
+    log.info(f"✅ VPN reconnected at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log.info("▶️  Operations resumed")
+    log.info("="*60 + "\n")
+
 # ----------------------------------------
 # HARDCODED CONFIGURATIONS (example)  - for testing
 # ----------------------------------------
@@ -272,6 +323,9 @@ async def main():
     Main entry point for the scraper
     Continuously fetches and processes jobs until queue is empty
     """
+    # Initialize VPN once at startup
+    initialize_vpn()
+
     while True:
         # Ensure output directories exist
         ensure_directories()
@@ -393,12 +447,31 @@ async def main():
                 log.error(f"❌ Error updating docket number: {e}")
         
         log.info("="*60)
-        log.info("JOB COMPLETED - FETCHING NEXT JOB...")
+        log.info("JOB COMPLETED - PREPARING FOR NEXT JOB")
         log.info("="*60)
+        
+        # Determine if VPN reconnection is needed
+        needs_vpn_reconnect = False
+        
+        if error_occurred:
+            # Case 1: Error occurred, we made add_job_to_queue API call
+            log.info("🔴 Error occurred in job - VPN reconnection required")
+            needs_vpn_reconnect = True
+        elif should_reconnect_vpn():
+            # Case 2: Time limit reached (successful jobs running continuously)
+            needs_vpn_reconnect = True
+        
+        # Reconnect VPN if needed (this pauses everything)
+        if needs_vpn_reconnect:
+            reconnect_vpn_if_needed()
+        else:
+            elapsed = (time.time() - last_vpn_reconnect_time) / 60
+            log.info(f"ℹ️  VPN reconnection not needed (elapsed: {elapsed:.1f} minutes)")
+        
+        log.info("🔄 Fetching next job from queue...")
         
         # Small delay before next job
         await asyncio.sleep(2)
-
 
 # ----------------------------------------
 # ENTRY POINT
