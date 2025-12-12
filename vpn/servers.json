@@ -1,0 +1,19 @@
+{
+    "default_server": "us-nyc",
+    "locations": {
+      "new_york": "us-nyc",
+      "chicago" : "us-chi",
+      "ashburn" : "us-ash",
+      "omaha"   : "us-oma",
+      "salt_lake_city": "us-slc",
+      "charlotte": "us-clt",
+      "boston"   : "us-bos",
+      "multi_hop": "us-nyc-us-bos"
+    },
+    "settings": {
+      "timeout_seconds": 60 ,
+      "auto_kill_switch": true,
+      "auto_reconnect_minutes": 10
+    }
+  }
+  
