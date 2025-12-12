@@ -184,35 +184,35 @@ def fetch_job_from_api():
 # ----------------------------------------
 # MAIN EXECUTION
 # ----------------------------------------
-async def scrape_single_config(config: dict):
-    """
-    Scrape cases for a single configuration
-    """
-    # Normalize config (handle API-style object conversions)
-    config = normalize_config_from_api(config)
+# async def scrape_single_config(config: dict):
+#     """
+#     Scrape cases for a single configuration
+#     """
+#     # Normalize config (handle API-style object conversions)
+#     config = normalize_config_from_api(config)
 
-    log.info("="*60)
-    log.info("STARTING VIRGINIA COURT SCRAPER")
-    log.info("="*60)
-    log.info(f"Court: {config.get('courtName')}")
-    log.info(f"FIPS Code: {config.get('courtFips') or config.get('searchFipsCode')}")
-    log.info(f"Case Type: {config.get('caseType','').upper()}")
-    log.info(f"Starting Docket Number: {config.get('docketNumber')}")
-    log.info(f"Year: {config.get('docketYear')}")
-    log.info(f"Search Division: {config.get('searchDivision')}")
-    log.info(f"Docket Type: {config.get('docketType')}")
-    log.info("="*60)
+#     log.info("="*60)
+#     log.info("STARTING VIRGINIA COURT SCRAPER")
+#     log.info("="*60)
+#     log.info(f"Court: {config.get('courtName')}")
+#     log.info(f"FIPS Code: {config.get('courtFips') or config.get('searchFipsCode')}")
+#     log.info(f"Case Type: {config.get('caseType','').upper()}")
+#     log.info(f"Starting Docket Number: {config.get('docketNumber')}")
+#     log.info(f"Year: {config.get('docketYear')}")
+#     log.info(f"Search Division: {config.get('searchDivision')}")
+#     log.info(f"Docket Type: {config.get('docketType')}")
+#     log.info("="*60)
     
-    # Initialize scraper
-    scraper = VirginiaScraper(config=config)
+#     # Initialize scraper
+#     scraper = VirginiaScraper(config=config)
     
-    # Run the scraper
-    results = await scraper.run_scraper()
+#     # Run the scraper
+#     results = await scraper.run_scraper()
     
-    # Print summary
-    print_summary(results, config)
+#     # Print summary
+#     print_summary(results, config)
     
-    return results
+#     return results
 
 
 async def main():
@@ -230,24 +230,108 @@ async def main():
         log.error("Failed to fetch job from API. Exiting.")
         return
     
-    # Scrape with the API configuration
-    await scrape_single_config(job_config)
+    # Store original job config for API calls
+    original_config = dict(job_config)
+    api_client = ApiClient()
+    
+    # Normalize config for scraping
+    config = normalize_config_from_api(job_config)
+    
+    log.info("="*60)
+    log.info("STARTING VIRGINIA COURT SCRAPER")
+    log.info("="*60)
+    log.info(f"Court: {config.get('courtName')}")
+    log.info(f"FIPS Code: {config.get('courtFips') or config.get('searchFipsCode')}")
+    log.info(f"Case Type: {config.get('caseType','').upper()}")
+    log.info(f"Starting Docket Number: {config.get('docketNumber')}")
+    log.info(f"Year: {config.get('docketYear')}")
+    log.info(f"Search Division: {config.get('searchDivision')}")
+    log.info(f"Docket Type: {config.get('docketType')}")
+    log.info("="*60)
+    
+    # Initialize scraper
+    scraper = VirginiaScraper(config=config)
+    
+    # Run the scraper
+    results, last_successful_number, error_occurred = await scraper.run_scraper()
+    
+    # Print summary
+    print_summary(results, config)
     
     # Group and merge JSON files after scraping
     log.info("\n" + "="*60)
     log.info("GROUPING AND MERGING JSON FILES")
     log.info("="*60)
     
+    grouped_results = []
     try:
         grouped_results = group_and_merge_json_files(JSON_DIR)
-        
         log.info(f"✅ Successfully created {len(grouped_results)} grouped records")
-        log.info(f"📁 Grouped files saved to: {os.path.join(JSON_DIR, 'grouped')}")
+        log.info(f"📁 Grouped files saved to: {os.path.join(OUTPUT_DIR, 'groupeddata')}")
     except Exception as e:
         log.error(f"Error during grouping: {e}")
     
+    # Insert grouped records into MongoDB
+    if grouped_results:
+        log.info("\n" + "="*60)
+        log.info("INSERTING RECORDS INTO DATABASE")
+        log.info("="*60)
+        
+        try:
+            insert_response = api_client.insert_records(grouped_results)
+            log.info(f"✅ Insert API Response: {insert_response}")
+            log.info(f"✅ Inserted {insert_response.get('body', {}).get('insertedCount', 0)} records")
+        except Exception as e:
+            log.error(f"❌ Error inserting records: {e}")
+            error_occurred = True
+    
+    # Handle error recovery or completion
+    if error_occurred:
+        log.info("\n" + "="*60)
+        log.info("ERROR RECOVERY - ADDING JOB BACK TO QUEUE")
+        log.info("="*60)
+        
+        # Add job back to queue with next docket number after last successful
+        next_docket = last_successful_number + 1
+        
+        recovery_job = {
+            "stateName": original_config.get("stateName", "VIRGINIA"),
+            "stateAbbreviation": original_config.get("stateAbbreviation", "VA"),
+            "countyNo": original_config.get("countyNo"),
+            "countyName": original_config.get("countyName"),
+            "docketNumber": str(next_docket).zfill(6),
+            "docketYear": original_config.get("docketYear"),
+            "docketType": original_config.get("docketType")
+        }
+        
+        try:
+            add_response = api_client.add_job_to_queue(recovery_job)
+            log.info(f"✅ Add Job API Response: {add_response}")
+            log.info(f"📝 Job added back to queue starting at docket: {recovery_job['docketNumber']}")
+        except Exception as e:
+            log.error(f"❌ Error adding job back to queue: {e}")
+    
+    else:
+        # Job completed successfully - update docket number
+        log.info("\n" + "="*60)
+        log.info("JOB COMPLETED SUCCESSFULLY - UPDATING DOCKET NUMBER")
+        log.info("="*60)
+        
+        try:
+            update_response = api_client.update_docket_number(
+                state_name=original_config.get("stateName", "VIRGINIA"),
+                county_no=original_config.get("countyNo"),
+                county_name=original_config.get("countyName"),
+                docket_number=last_successful_number,
+                docket_year=original_config.get("docketYear"),
+                docket_type=original_config.get("docketType")
+            )
+            log.info(f"✅ Update API Response: {update_response}")
+            log.info(f"✅ Updated last successful docket to: {str(last_successful_number).zfill(6)}")
+        except Exception as e:
+            log.error(f"❌ Error updating docket number: {e}")
+    
     log.info("="*60)
-
 
 # ----------------------------------------
 # ENTRY POINT

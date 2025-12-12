@@ -57,3 +57,27 @@ class ApiClient:
         except Exception as e:
             print("POST API Error:", e)
             raise e
+    
+    def insert_records(self, records):
+        """Insert scraped records into MongoDB"""
+        path = "VA_VATrafficCriminal_DataDockets_INSERT"
+        return self.post(path, records)
+    
+    def update_docket_number(self, state_name, county_no, county_name, docket_number, docket_year, docket_type):
+        """Update the last successful docket number"""
+        path = "VA_County_DocketNumber_UPDATE"
+        data = {
+            "stateName": state_name,
+            "countyNo": county_no,
+            "countyName": county_name,
+            "docketNumber": str(docket_number).zfill(6),
+            "docketYear": docket_year,
+            "docketType": docket_type
+        }
+        return self.post(path, data)
+    
+    def add_job_to_queue(self, court_office_details):
+        """Add a new job back to the queue (for error recovery)"""
+        path = "VA_Downloader_Job_To_SQS_ADD"
+        data = {"courtOfficeDetails": court_office_details}
+        return self.post(path, data)

@@ -167,6 +167,7 @@ class VirginiaScraper(BaseScraper):
         """
         Run the scraper but STOP IMMEDIATELY if any hard failure/error occurs (error/timeout),
         or if saving/parsing fails for a successful scrape.
+        Returns: (results, last_successful_number, error_occurred)
         """
         case_type = self.config.get('caseType', 'civil')
         prefixes = self.case_prefixes.get(case_type, ['GV'])
@@ -176,8 +177,10 @@ class VirginiaScraper(BaseScraper):
         current_prefix = prefixes[0]
         log.info(f"Starting scrape with prefix: {current_prefix}")
         current_number = start_number
+        last_successful_number = start_number - 1  # Track last successful docket
         consecutive_failures = 0
         max_consecutive_failures = 1
+        error_occurred = False
 
         while consecutive_failures < max_consecutive_failures:
             number_str = str(current_number).zfill(6)
@@ -188,7 +191,8 @@ class VirginiaScraper(BaseScraper):
             if result['status'] in ('error', 'timeout'):
                 log.error(f"Hard failure for {case_number}. Stopping scraper and returning results so far.")
                 results.append(result)
-                return results  # immediate stop
+                error_occurred = True
+                return results, last_successful_number, error_occurred
 
             if result['status'] == 'success':
                 # Attempt to save HTML and parse to JSON. save_html returns json_path or None
@@ -196,11 +200,13 @@ class VirginiaScraper(BaseScraper):
                 if not json_path:
                     log.error(f"Failed to save/parse HTML for {case_number}. Stopping scraper.")
                     results.append({'status': 'save_parse_error', 'case_number': case_number, 'html': None})
-                    return results
+                    error_occurred = True
+                    return results, last_successful_number, error_occurred
                 # success overall: include json_path in the result
                 result['json_path'] = json_path
                 results.append(result)
                 consecutive_failures = 0
+                last_successful_number = current_number  # Update last successful
                 current_number += 1
 
             elif result['status'] == 'no_results':
@@ -215,19 +221,22 @@ class VirginiaScraper(BaseScraper):
                     if alt_result['status'] in ('error', 'timeout'):
                         log.error(f"Hard failure for alternate {alt_case_number}. Stopping scraper.")
                         results.append(alt_result)
-                        return results
+                        error_occurred = True
+                        return results, last_successful_number, error_occurred
 
                     if alt_result['status'] == 'success':
                         alt_json_path = self.save_html(alt_result['html'], alt_case_number)
                         if not alt_json_path:
                             log.error(f"Failed to save/parse HTML for {alt_case_number}. Stopping scraper.")
                             results.append({'status': 'save_parse_error', 'case_number': alt_case_number, 'html': None})
-                            return results
+                            error_occurred = True
+                            return results, last_successful_number, error_occurred
                         alt_result['json_path'] = alt_json_path
                         log.info(f"✅ Found with alternate prefix! Switching from {current_prefix} to {alternate_prefix}")
                         current_prefix = alternate_prefix
                         results.append(alt_result)
                         consecutive_failures = 0
+                        last_successful_number = current_number  # Update last successful
                         current_number += 1
                     else:
                         log.warning(f"❌ Both {case_number} and {alt_case_number} not found")
@@ -242,13 +251,13 @@ class VirginiaScraper(BaseScraper):
             else:
                 log.error(f"Unexpected status '{result['status']}' for {case_number}. Stopping.")
                 results.append(result)
-                return results
+                error_occurred = True
+                return results, last_successful_number, error_occurred
 
             await asyncio.sleep(2)
 
         log.info(f"Completed scraping. Found {len(results)} cases total.")
-        return results
-
+        return results, last_successful_number, error_occurred
     def save_html(self, html_content: str, case_number: str) -> str:
         """
         Save HTML to data/htmldata folder, then parse it to JSON and save parsed JSON.
