@@ -1,3 +1,4 @@
+
 import os
 import asyncio
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -14,22 +15,57 @@ class VirginiaScraper(BaseScraper):
     Scraper for Virginia General District Courts
     Handles both Civil (GV) and Criminal (GC, GT) cases
     Case format: XX000000-00 (2 letters + 6 digits + dash + 2 digits)
-    
-    For criminal cases: If GC prefix fails, try GT with same number (and vice versa)
     """
-    
+
     def __init__(self, config: dict):
+        """
+        Normalize and store config. Ensure searchFipsCode / courtFips / county_no are 3-digit strings.
+        """
         super().__init__(config)
+
+        # Make a shallow copy to avoid mutating user's original dict
+        self.config = dict(config)
+
+        def pad_3_digits(val):
+            try:
+                return str(int(val)).zfill(3)
+            except Exception:
+                return str(val)
+
+        if 'county_no' in self.config:
+            padded = pad_3_digits(self.config['county_no'])
+            self.config['county_no'] = padded
+            self.config['searchFipsCode'] = padded
+            self.config['courtFips'] = padded
+        else:
+            if 'searchFipsCode' in self.config:
+                padded = pad_3_digits(self.config['searchFipsCode'])
+                self.config['searchFipsCode'] = padded
+                self.config['courtFips'] = self.config.get('courtFips', padded)
+                self.config['county_no'] = self.config.get('county_no', padded)
+
+        if 'docket_type' in self.config:
+            dt = str(self.config['docket_type']).upper()
+            if dt in ('GC', 'GT'):
+                self.config['caseType'] = 'criminal'
+                self.config['searchDivision'] = 'T'
+            elif dt == 'GV':
+                self.config['caseType'] = 'civil'
+                self.config['searchDivision'] = self.config.get('searchDivision', 'V')
+
+        self.config['caseType'] = self.config.get('caseType', 'civil')
+        self.config['searchDivision'] = self.config.get('searchDivision', 'V')
+
         self.base_url = "https://eapps.courts.state.va.us/gdcourts/criminalCivilCaseSearch.do"
         self.case_prefixes = {
             'civil': ['GV'],
             'criminal': ['GC', 'GT']
         }
-    
+
     def build_case_number(self, prefix: str, year: str, number: str, suffix: str = "00") -> str:
         number_padded = str(number).zfill(6)
         return f"{prefix}{year}{number_padded}-{suffix}"
-    
+
     async def check_no_results(self, page) -> bool:
         try:
             await page.wait_for_load_state("networkidle", timeout=10000)
@@ -38,16 +74,16 @@ class VirginiaScraper(BaseScraper):
         except Exception as e:
             log.warning(f"Could not verify no results status: {e}")
             return False
-    
+
     async def scrape_case(self, case_number: str, prefix: str) -> dict:
         browser, context, page = await get_stealth_browser(headless=True)
         try:
             log.info(f"Scraping case: {case_number}")
             referer_url = (
                 f"{self.base_url}?fromSidebar=true&formAction=searchLanding"
-                f"&searchDivision={self.config['searchDivision']}"
-                f"&searchFipsCode={self.config['searchFipsCode']}"
-                f"&curentFipsCode={self.config['searchFipsCode']}"
+                f"&searchDivision={self.config.get('searchDivision')}"
+                f"&searchFipsCode={self.config.get('searchFipsCode')}"
+                f"&curentFipsCode={self.config.get('searchFipsCode')}"
             )
             await page.goto(referer_url, wait_until="domcontentloaded", timeout=30000)
             await page.set_extra_http_headers({
@@ -65,11 +101,11 @@ class VirginiaScraper(BaseScraper):
             })
             form_data = {
                 'formAction': 'submitCase',
-                'searchFipsCode': str(self.config['searchFipsCode']),
-                'searchDivision': self.config['searchDivision'],
+                'searchFipsCode': str(self.config.get('searchFipsCode')),
+                'searchDivision': self.config.get('searchDivision'),
                 'searchType': 'caseNumber',
                 'displayCaseNumber': case_number,
-                'localFipsCode': str(self.config['searchFipsCode'])
+                'localFipsCode': str(self.config.get('searchFipsCode'))
             }
             await page.evaluate(f"""
                 () => {{
@@ -118,7 +154,7 @@ class VirginiaScraper(BaseScraper):
                 await browser.close()
             except Exception:
                 pass
-    
+
     def get_alternate_prefix(self, current_prefix: str) -> str:
         if current_prefix == 'GC':
             return 'GT'
@@ -126,89 +162,126 @@ class VirginiaScraper(BaseScraper):
             return 'GC'
         else:
             return None
-    
+
     async def run_scraper(self):
+        """
+        Run the scraper but STOP IMMEDIATELY if any hard failure/error occurs (error/timeout),
+        or if saving/parsing fails for a successful scrape.
+        """
         case_type = self.config.get('caseType', 'civil')
         prefixes = self.case_prefixes.get(case_type, ['GV'])
-        start_number = int(self.config['docketNumber'])
-        docket_year = str(self.config['docketYear'])[-2:]
+        start_number = int(self.config.get('docketNumber', 0))
+        docket_year = str(self.config.get('docketYear'))[-2:]
         results = []
         current_prefix = prefixes[0]
         log.info(f"Starting scrape with prefix: {current_prefix}")
         current_number = start_number
         consecutive_failures = 0
         max_consecutive_failures = 1
+
         while consecutive_failures < max_consecutive_failures:
             number_str = str(current_number).zfill(6)
             case_number = self.build_case_number(current_prefix, docket_year, number_str)
             result = await self.scrape_case(case_number, current_prefix)
+
+            # HARD failures -> stop entire run and return immediately
+            if result['status'] in ('error', 'timeout'):
+                log.error(f"Hard failure for {case_number}. Stopping scraper and returning results so far.")
+                results.append(result)
+                return results  # immediate stop
+
             if result['status'] == 'success':
+                # Attempt to save HTML and parse to JSON. save_html returns json_path or None
+                json_path = self.save_html(result['html'], case_number)
+                if not json_path:
+                    log.error(f"Failed to save/parse HTML for {case_number}. Stopping scraper.")
+                    results.append({'status': 'save_parse_error', 'case_number': case_number, 'html': None})
+                    return results
+                # success overall: include json_path in the result
+                result['json_path'] = json_path
                 results.append(result)
                 consecutive_failures = 0
-                self.save_html(result['html'], case_number)
                 current_number += 1
+
             elif result['status'] == 'no_results':
+                # For criminal cases, try alternate prefix once
                 alternate_prefix = self.get_alternate_prefix(current_prefix)
                 if alternate_prefix and case_type == 'criminal':
                     log.info(f"🔄 Trying alternate prefix: {alternate_prefix}")
                     alt_case_number = self.build_case_number(alternate_prefix, docket_year, number_str)
                     alt_result = await self.scrape_case(alt_case_number, alternate_prefix)
+
+                    # if alternate produced hard failure -> stop
+                    if alt_result['status'] in ('error', 'timeout'):
+                        log.error(f"Hard failure for alternate {alt_case_number}. Stopping scraper.")
+                        results.append(alt_result)
+                        return results
+
                     if alt_result['status'] == 'success':
+                        alt_json_path = self.save_html(alt_result['html'], alt_case_number)
+                        if not alt_json_path:
+                            log.error(f"Failed to save/parse HTML for {alt_case_number}. Stopping scraper.")
+                            results.append({'status': 'save_parse_error', 'case_number': alt_case_number, 'html': None})
+                            return results
+                        alt_result['json_path'] = alt_json_path
                         log.info(f"✅ Found with alternate prefix! Switching from {current_prefix} to {alternate_prefix}")
                         current_prefix = alternate_prefix
                         results.append(alt_result)
                         consecutive_failures = 0
-                        self.save_html(alt_result['html'], alt_case_number)
                         current_number += 1
                     else:
-                        log.warning(f"❌ Both {result['case_number']} and {alt_case_number} not found")
+                        log.warning(f"❌ Both {case_number} and {alt_case_number} not found")
                         consecutive_failures += 1
                         log.warning(f"No results count: {consecutive_failures}/{max_consecutive_failures}")
                         current_number += 1
                 else:
                     consecutive_failures += 1
+                    log.warning(f"No results for {case_number}. No alternate available.")
                     log.warning(f"No results count: {consecutive_failures}/{max_consecutive_failures}")
                     current_number += 1
             else:
-                log.warning(f"Failed to scrape {case_number}, status: {result['status']}")
-                current_number += 1
+                log.error(f"Unexpected status '{result['status']}' for {case_number}. Stopping.")
+                results.append(result)
+                return results
+
             await asyncio.sleep(2)
+
         log.info(f"Completed scraping. Found {len(results)} cases total.")
         return results
-    
-    def save_html(self, html_content: str, case_number: str):
-        """Save HTML to data/htmldata folder, then parse it to JSON and save parsed JSON."""
-        html_dir = os.path.join(self.output_dir, "htmldata")
-        os.makedirs(html_dir, exist_ok=True)
 
-        safe_court_name = self.config.get('courtName', 'unknown_court').replace(' ', '_')
-        filename = f"{case_number}_{safe_court_name}.html"
-        filepath = os.path.join(html_dir, filename)
+    def save_html(self, html_content: str, case_number: str) -> str:
+        """
+        Save HTML to data/htmldata folder, then parse it to JSON and save parsed JSON.
 
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-
-        log.info(f"Saved HTML: {filepath}")
-
-        # -------------------------
-        # Parse HTML -> JSON
-        # -------------------------
+        Returns the json_path (string) on success, or None on failure.
+        """
         try:
+            html_dir = os.path.join(self.output_dir, "htmldata")
+            os.makedirs(html_dir, exist_ok=True)
+
+            safe_court_name = self.config.get('courtName', 'unknown_court').replace(' ', '_')
+            filename = f"{case_number}_{safe_court_name}.html"
+            filepath = os.path.join(html_dir, filename)
+
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+
+            log.info(f"Saved HTML: {filepath}")
+
+            # Parse HTML -> JSON
             parsed = parse_case_div(filepath)
-        except Exception as e:
-            parsed = {}
-            log.error(f"Parsing HTML failed for {case_number}: {e}")
 
-        try:
             json_dir = os.path.join(self.output_dir, "jsondata")
             os.makedirs(json_dir, exist_ok=True)
 
-            # Prepare metadata that'll be injected at top of JSON
             metadata_court = self.config.get("courtName", "Radford General District Court")
             metadata_state = self.config.get("state", "VA")
-            metadata_search_fips = int(self.config.get("searchFipsCode", 0))
+            search_fips = self.config.get("searchFipsCode")
+            try:
+                metadata_search_fips = int(search_fips)
+            except Exception:
+                metadata_search_fips = search_fips
 
-            # Always save with Case/Defendant Information first (case_first=True)
             json_path = save_parsed_json(
                 case_number=case_number,
                 parsed=parsed,
@@ -220,8 +293,7 @@ class VirginiaScraper(BaseScraper):
             )
 
             log.info(f"Saved parsed JSON: {json_path}")
+            return json_path
         except Exception as e:
-            log.error(f"Saving parsed JSON failed for {case_number}: {e}")
-            json_path = None
-
-        return filepath
+            log.error(f"Saving/parsing failed for {case_number}: {e}")
+            return None

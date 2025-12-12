@@ -28,36 +28,46 @@ def load_all_json_files(json_dir: str) -> List[Dict[str, Any]]:
 def create_grouping_key(case_data: Dict[str, Any]) -> str:
     """
     Create a unique key for grouping based on:
-    Case Number, Filed Date, Locality, Name, Address, Gender, DOB
+    Filed Date, Locality, Name, Address, Gender, DOB
+    (Note: Case Number is NOT included - we want to merge different cases for same person)
     """
     case_info = case_data.get("Case/Defendant Information", {})
     
-    # Extract key fields
-    case_number = case_info.get("Case Number ", "").strip()
-    filed_date = case_info.get("Filed Date ", "").strip()
-    locality = case_info.get("Locality ", "").strip()
-    name = case_info.get("Name ", "").strip()
-    address = case_info.get("Address ", "").strip()
-    gender = case_info.get("Gender ", "").strip()
-    dob = case_info.get("DOB ", "").strip()
+    # Extract key fields - DO NOT include Case Number
+    filed_date = case_info.get("Filed Date", case_info.get("Filed Date ", "")).strip()
+    locality = case_info.get("Locality", case_info.get("Locality ", "")).strip()
+    name = case_info.get("Name", case_info.get("Name ", "")).strip()
+    address = case_info.get("Address", case_info.get("Address ", "")).strip()
+    gender = case_info.get("Gender", case_info.get("Gender ", "")).strip()
+    dob = case_info.get("DOB", case_info.get("DOB ", "")).strip()
     
-    # Create composite key
-    key = f"{case_number}|{filed_date}|{locality}|{name}|{address}|{gender}|{dob}"
+    # Create composite key WITHOUT case number
+    key = f"{filed_date}|{locality}|{name}|{address}|{gender}|{dob}"
     return key
 
 def merge_grouped_cases(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Merge multiple cases into a single grouped record.
     Combines charges, hearings, services, and dispositions into arrays.
+    Each item in arrays includes 'case_number' to track which case it came from.
     """
     if not cases:
         return {}
     
+    # Collect all unique case numbers for this group
+    case_numbers = []
+    for case in cases:
+        cn = case.get("Case/Defendant Information", {}).get("Case Number", 
+             case.get("Case/Defendant Information", {}).get("Case Number ", "")).strip()
+        if cn and cn not in case_numbers:
+            case_numbers.append(cn)
+    
     # Start with the first case as base
     merged = {
         "state": cases[0].get("state", "VA"),
-        "court_name": cases[0].get("court_name", ""),
+        "court_name": cases[0].get("court_name", cases[0].get("courtName", "")),
         "download_date": cases[0].get("download_date", ""),
+        "case_numbers": case_numbers,  # Track all merged case numbers
         "docket_information": cases[0].get("Case/Defendant Information", {}),
         "charges": [],
         "hearings": [],
@@ -67,7 +77,8 @@ def merge_grouped_cases(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
     
     # Merge all cases
     for case in cases:
-        case_number = case.get("Case/Defendant Information", {}).get("Case Number ", "").strip()
+        case_number = case.get("Case/Defendant Information", {}).get("Case Number",
+                      case.get("Case/Defendant Information", {}).get("Case Number ", "")).strip()
         
         # Add charge with case number reference
         charge_info = case.get("Charge Information", {})
@@ -85,13 +96,13 @@ def merge_grouped_cases(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
         # Add services with case number reference
         services = case.get("Service/Process", [])
         for service in services:
-            if service and any(v for v in service.values() if v):
+            if service:
                 service_with_case = {"case_number": case_number, **service}
                 merged["services"].append(service_with_case)
         
         # Add disposition with case number reference
         disposition_info = case.get("Disposition Information", {})
-        if disposition_info and any(v for v in disposition_info.values() if v):
+        if disposition_info:
             disposition_with_case = {"case_number": case_number, **disposition_info}
             merged["dispositions"].append(disposition_with_case)
     
@@ -109,7 +120,8 @@ def group_and_merge_json_files(json_dir: str, output_dir: str = None) -> List[Di
         List of grouped and merged case records
     """
     if output_dir is None:
-        output_dir = os.path.join(json_dir, "grouped")
+        parent_dir = os.path.dirname(json_dir)
+        output_dir = os.path.join(parent_dir, "groupeddata")
     
     os.makedirs(output_dir, exist_ok=True)
     
@@ -132,11 +144,18 @@ def group_and_merge_json_files(json_dir: str, output_dir: str = None) -> List[Di
         merged_results.append(merged)
         
         # Save individual grouped file
-        if merged.get("docket_information", {}).get("Name ", ""):
-            name = merged["docket_information"]["Name "].replace(" ", "_").replace(",", "")
-            case_num = merged["docket_information"].get("Case Number ", "UNKNOWN").replace("-", "_")
-            filename = f"grouped_{name}_{case_num}.json"
+        case_numbers_list = merged.get("case_numbers", [])
+        
+        if len(case_numbers_list) == 1:
+            # Single case - use case number as filename
+            filename = f"{case_numbers_list[0].replace('-', '_')}.json"
+        elif len(case_numbers_list) > 1:
+            # Multiple cases merged - use concatenated case numbers
+            case_nums_str = "_".join([cn.replace("-", "_") for cn in case_numbers_list])
+            filename = f"{case_nums_str}.json"
         else:
+            # Fallback
+            console.log(case_numbers_list)
             filename = f"grouped_case_{idx}.json"
         
         filepath = os.path.join(output_dir, filename)
