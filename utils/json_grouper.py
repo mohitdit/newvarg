@@ -28,21 +28,21 @@ def load_all_json_files(json_dir: str) -> List[Dict[str, Any]]:
 def create_grouping_key(case_data: Dict[str, Any]) -> str:
     """
     Create a unique key for grouping based on:
-    Filed Date, Locality, Name, Address, Gender, DOB
-    (Note: Case Number is NOT included - we want to merge different cases for same person)
+    Case Number, Locality, Name, Address, Gender, DOB
+    This ensures each unique case is only processed once
     """
     case_info = case_data.get("Case/Defendant Information", {})
     
-    # Extract key fields - DO NOT include Case Number
-    filed_date = case_info.get("Filed Date", case_info.get("Filed Date ", "")).strip()
+    # Extract key fields - INCLUDE Case Number to prevent duplicates
+    case_number = case_info.get("Case Number", case_info.get("Case Number ", "")).strip()
     locality = case_info.get("Locality", case_info.get("Locality ", "")).strip()
     name = case_info.get("Name", case_info.get("Name ", "")).strip()
     address = case_info.get("Address", case_info.get("Address ", "")).strip()
     gender = case_info.get("Gender", case_info.get("Gender ", "")).strip()
     dob = case_info.get("DOB", case_info.get("DOB ", "")).strip()
     
-    # Create composite key WITHOUT case number
-    key = f"{filed_date}|{locality}|{name}|{address}|{gender}|{dob}"
+    # Create composite key WITH case number to avoid duplicates
+    key = f"{case_number}|{locality}|{name}|{address}|{gender}|{dob}"
     return key
 
 def merge_grouped_cases(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -54,13 +54,11 @@ def merge_grouped_cases(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not cases:
         return {}
     
-    # Collect all unique case numbers for this group
-    # case_numbers = []
-    # for case in cases:
-    #     cn = case.get("Case/Defendant Information", {}).get("Case Number", 
-    #          case.get("Case/Defendant Information", {}).get("Case Number ", "")).strip()
-    #     if cn and cn not in case_numbers:
-    #         case_numbers.append(cn)
+    # Get docket information from first case and remove Case Number
+    docket_info = cases[0].get("Case/Defendant Information", {}).copy()
+    # Remove Case Number from docket_information (it's tracked in each charge/hearing/disposition)
+    docket_info.pop("Case Number", None)
+    docket_info.pop("Case Number ", None)  # Also remove with trailing space if exists
     
     # Start with the first case as base
     merged = {
@@ -68,11 +66,9 @@ def merge_grouped_cases(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
         "court_name": cases[0].get("court_name", cases[0].get("courtName", "")),
         "download_date": cases[0].get("download_date", ""),
         "county_no": cases[0].get("searchFipsCode", cases[0].get("county_no", "")),
-        #"case_numbers": case_numbers,  # Track all merged case numbers
-        "docket_information": cases[0].get("Case/Defendant Information", {}),
+        "docket_information": docket_info,
         "charges": [],
         "hearings": [],
-        #"services": [],
         "dispositions": []
     }
     
@@ -145,24 +141,24 @@ def group_and_merge_json_files(json_dir: str, output_dir: str = None) -> List[Di
         merged_results.append(merged)
         
         # Save individual grouped file
-        # Collect case numbers from original cases (before merging removed them)
+        # Collect case numbers and county number from original cases
         case_numbers_list = []
+        county_no = merged.get("county_no", "000")  # Get county number from merged data
+        
         for case in cases:
             cn = case.get("Case/Defendant Information", {}).get("Case Number", 
                  case.get("Case/Defendant Information", {}).get("Case Number ", "")).strip()
             if cn and cn not in case_numbers_list:
                 case_numbers_list.append(cn)
         
-        if len(case_numbers_list) == 1:
-            # Single case - use case number as filename
-            filename = f"{case_numbers_list[0].replace('-', '_')}.json"
-        elif len(case_numbers_list) > 1:
-            # Multiple cases merged - use concatenated case numbers
-            case_nums_str = "_".join([cn.replace("-", "_") for cn in case_numbers_list])
-            filename = f"{case_nums_str}.json"
+        # Get first case number and count of merged cases
+        if case_numbers_list:
+            first_case = case_numbers_list[0].replace('-', '_')
+            merged_count = len(case_numbers_list)
+            filename = f"{first_case}_{merged_count}_{county_no}.json"
         else:
             # Fallback
-            filename = f"grouped_case_{idx}.json"
+            filename = f"grouped_case_{idx}_{county_no}.json"
         
         filepath = os.path.join(output_dir, filename)
         with open(filepath, 'w', encoding='utf-8') as f:
