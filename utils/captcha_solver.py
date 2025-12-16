@@ -17,7 +17,7 @@ async def solve_captcha(image_bytes: bytes) -> str:
             temp_file.write(image_bytes)
             temp_filename = temp_file.name
 
-        log.info(f"📤 Sending CAPTCHA to DeathByCaptcha (Size: {len(image_bytes)} bytes)...")
+        log.info(f" Sending CAPTCHA to DeathByCaptcha (Size: {len(image_bytes)} bytes)...")
         
         # Initialize Client
         client = deathbycaptcha.HttpClient(DBC_USERNAME, DBC_PASSWORD)
@@ -28,7 +28,7 @@ async def solve_captcha(image_bytes: bytes) -> str:
 
         if captcha and "text" in captcha:
             solved = captcha["text"]
-            log.info(f"🤖 DBC Solved: {solved} (ID: {captcha['captcha']})")
+            log.info(f"烙 DBC Solved: {solved} (ID: {captcha['captcha']})")
             return solved
         else:
             log.error("❌ DBC returned empty text.")

@@ -96,16 +96,19 @@ def reconnect_vpn_if_needed():
 # ACTIVE_CONFIG = API_EXAMPLE  # for testing an API-style object
 
 # Output directories
-OUTPUT_DIR = "data"
-HTML_DIR = os.path.join(OUTPUT_DIR, "htmldata")
-JSON_DIR = os.path.join(OUTPUT_DIR, "jsondata")
+OUTPUT_DIR = None
+HTML_DIR = None
+JSON_DIR = None
 
 
 # ----------------------------------------
 # HELPER FUNCTIONS
 # ----------------------------------------
-def ensure_directories():
+def ensure_directories(base_output_dir):
     """Create necessary directories if they don't exist"""
+    global HTML_DIR, JSON_DIR
+    HTML_DIR = os.path.join(base_output_dir, "htmldata")
+    JSON_DIR = os.path.join(base_output_dir, "jsondata")
     os.makedirs(HTML_DIR, exist_ok=True)
     os.makedirs(JSON_DIR, exist_ok=True)
     log.info(f"Output directories ready: {HTML_DIR}, {JSON_DIR}")
@@ -327,8 +330,29 @@ async def main():
     initialize_vpn()
 
     while True:
-        # Ensure output directories exist
-        ensure_directories()
+        # Fetch job from API
+        job_config = fetch_job_from_api()
+        
+        if not job_config:
+            log.info("="*60)
+            log.info("NO MORE JOBS IN QUEUE - SCRAPER SHUTTING DOWN")
+            log.info("="*60)
+            break
+        
+        # Store original job config for API calls
+        original_config = dict(job_config)
+        api_client = ApiClient()
+        
+        # Normalize config for scraping
+        config = normalize_config_from_api(job_config)
+        
+        # Initialize scraper to get the proper output_dir structure
+        scraper = VirginiaScraper(config=config)
+        
+        # Set global output directories based on scraper's output_dir
+        global OUTPUT_DIR
+        OUTPUT_DIR = scraper.output_dir
+        ensure_directories(OUTPUT_DIR)
         
         # Move any existing grouped files to processed folder
         log.info("="*60)

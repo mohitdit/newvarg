@@ -64,9 +64,9 @@ class WisconsinScraper(BaseScraper):
             log.info(f"✅ Case detail HTML fetched successfully (Size: {len(html_content)} bytes).")
 
         except PlaywrightTimeoutError as e:
-            log.error(f"🚨 Timeout error: The page took too long to load or the selector was not found. {e}")
+            log.error(f" Timeout error: The page took too long to load or the selector was not found. {e}")
         except Exception as e:
-            log.error(f"🚨 An unexpected error occurred during scraping: {e}")
+            log.error(f" An unexpected error occurred during scraping: {e}")
         finally:
             await context.close()
             await browser.close()

@@ -213,7 +213,7 @@ class VirginiaScraper(BaseScraper):
                 # For criminal cases, try alternate prefix once
                 alternate_prefix = self.get_alternate_prefix(current_prefix)
                 if alternate_prefix and case_type == 'criminal':
-                    log.info(f"🔄 Trying alternate prefix: {alternate_prefix}")
+                    log.info(f" Trying alternate prefix: {alternate_prefix}")
                     alt_case_number = self.build_case_number(alternate_prefix, docket_year, number_str)
                     alt_result = await self.scrape_case(alt_case_number, alternate_prefix)
 
