@@ -39,7 +39,6 @@ class BaseScraper(ABC):
             state,
             safe_county_name,
             case_type_folder,
-            "data"
         )
         
         os.makedirs(self.output_dir, exist_ok=True)

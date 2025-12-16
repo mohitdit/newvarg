@@ -265,7 +265,7 @@ class VirginiaScraper(BaseScraper):
         Returns the json_path (string) on success, or None on failure.
         """
         try:
-            html_dir = os.path.join(self.output_dir, "htmldata")
+            html_dir = os.path.join(self.output_dir,"data", "htmldata")
             os.makedirs(html_dir, exist_ok=True)
 
             safe_court_name = self.config.get('courtName', 'unknown_court').replace(' ', '_')
@@ -280,7 +280,7 @@ class VirginiaScraper(BaseScraper):
             # Parse HTML -> JSON
             parsed = parse_case_div(filepath)
 
-            json_dir = os.path.join(self.output_dir, "jsondata")
+            json_dir = os.path.join(self.output_dir,"data", "jsondata")
             os.makedirs(json_dir, exist_ok=True)
 
             metadata_court = self.config.get("courtName", "Radford General District Court")

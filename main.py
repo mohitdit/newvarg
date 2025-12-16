@@ -20,10 +20,10 @@ def initialize_vpn():
     """Initialize VPN manager and connect"""
     global vpn_manager, last_vpn_reconnect_time
     vpn_manager = SurfsharkManager()
-    log.info("🔌 Initializing VPN connection...")
+    log.info("= Initializing VPN connection...")
     vpn_manager.reconnect()
     last_vpn_reconnect_time = time.time()
-    log.info(f"✅ VPN connected at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log.info(f" VPN connected at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 def should_reconnect_vpn():
     """Check if VPN should reconnect based on time interval"""
@@ -37,7 +37,7 @@ def should_reconnect_vpn():
     elapsed_minutes = elapsed_seconds / 60
     
     if elapsed_minutes >= interval_minutes:
-        log.info(f"⏰ VPN reconnection needed: {elapsed_minutes:.1f} minutes elapsed (limit: {interval_minutes} minutes)")
+        log.info(f"� VPN reconnection needed: {elapsed_minutes:.1f} minutes elapsed (limit: {interval_minutes} minutes)")
         return True
     
     return False
@@ -47,15 +47,15 @@ def reconnect_vpn_if_needed():
     global last_vpn_reconnect_time
     
     log.info("\n" + "="*60)
-    log.info("🔄 VPN RECONNECTION IN PROGRESS")
+    log.info("= VPN RECONNECTION IN PROGRESS")
     log.info("="*60)
-    log.info("⏸️  All operations paused during VPN reconnection...")
+    log.info("�  All operations paused during VPN reconnection...")
     
     vpn_manager.reconnect()
     last_vpn_reconnect_time = time.time()
     
-    log.info(f"✅ VPN reconnected at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    log.info("▶️  Operations resumed")
+    log.info(f" VPN reconnected at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log.info("�  Operations resumed")
     log.info("="*60 + "\n")
 
 # ----------------------------------------
@@ -107,53 +107,53 @@ JSON_DIR = None
 def ensure_directories(base_output_dir):
     """Create necessary directories if they don't exist"""
     global HTML_DIR, JSON_DIR
-    HTML_DIR = os.path.join(base_output_dir, "htmldata")
-    JSON_DIR = os.path.join(base_output_dir, "jsondata")
+    HTML_DIR = os.path.join(base_output_dir, "data","htmldata")
+    JSON_DIR = os.path.join(base_output_dir, "data","jsondata")
     os.makedirs(HTML_DIR, exist_ok=True)
     os.makedirs(JSON_DIR, exist_ok=True)
     log.info(f"Output directories ready: {HTML_DIR}, {JSON_DIR}")
 
-def manage_processed_data():
-    """
-    Move files from groupeddata to processeddata before starting new job
-    This prevents duplicate insertions from previous runs
-    """
-    import shutil
+# def manage_processed_data():
+#     """
+#     Move files from groupeddata to processeddata before starting new job
+#     This prevents duplicate insertions from previous runs
+#     """
+#     import shutil
     
-    grouped_dir = os.path.join(OUTPUT_DIR, "groupeddata")
-    processed_dir = os.path.join(OUTPUT_DIR, "processeddata")
+#     grouped_dir = os.path.join(OUTPUT_DIR, "groupeddata")
+#     processed_dir = os.path.join(OUTPUT_DIR, "processeddata")
     
-    # Create processeddata directory if it doesn't exist
-    os.makedirs(processed_dir, exist_ok=True)
+#     # Create processeddata directory if it doesn't exist
+#     os.makedirs(processed_dir, exist_ok=True)
     
-    # Check if groupeddata exists and has files
-    if os.path.exists(grouped_dir):
-        files = [f for f in os.listdir(grouped_dir) if f.endswith('.json')]
+#     # Check if groupeddata exists and has files
+#     if os.path.exists(grouped_dir):
+#         files = [f for f in os.listdir(grouped_dir) if f.endswith('.json')]
         
-        if files:
-            log.info(f"Found {len(files)} files in groupeddata folder")
-            log.info("Moving files to processeddata folder...")
+#         if files:
+#             log.info(f"Found {len(files)} files in groupeddata folder")
+#             log.info("Moving files to processeddata folder...")
             
-            # Move each file to processeddata
-            for filename in files:
-                src = os.path.join(grouped_dir, filename)
-                dst = os.path.join(processed_dir, filename)
+#             # Move each file to processeddata
+#             for filename in files:
+#                 src = os.path.join(grouped_dir, filename)
+#                 dst = os.path.join(processed_dir, filename)
                 
-                # If file already exists in processeddata, add timestamp to avoid overwrite
-                if os.path.exists(dst):
-                    from datetime import datetime
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    name, ext = os.path.splitext(filename)
-                    dst = os.path.join(processed_dir, f"{name}_{timestamp}{ext}")
+#                 # If file already exists in processeddata, add timestamp to avoid overwrite
+#                 if os.path.exists(dst):
+#                     from datetime import datetime
+#                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+#                     name, ext = os.path.splitext(filename)
+#                     dst = os.path.join(processed_dir, f"{name}_{timestamp}{ext}")
                 
-                shutil.move(src, dst)
-                log.info(f"  Moved: {filename}")
+#                 shutil.move(src, dst)
+#                 log.info(f"  Moved: {filename}")
             
-            log.info(f"✅ Successfully moved {len(files)} files to processeddata")
-        else:
-            log.info("No files found in groupeddata folder")
-    else:
-        log.info("groupeddata folder does not exist yet")
+#             log.info(f" Successfully moved {len(files)} files to processeddata")
+#         else:
+#             log.info("No files found in groupeddata folder")
+#     else:
+#         log.info("groupeddata folder does not exist yet")
 
 
 def pad_3_digits(value):
@@ -230,16 +230,16 @@ def print_summary(results: list, config: dict):
     print(f"Starting Docket: {config.get('docketNumber')}")
     print(f"Year: {config.get('docketYear')}")
     print("-"*60)
-    print(f"✅ Successful Cases: {len(successful)}")
-    print(f"❌ No Results Found: {len(no_results)}")
-    print(f"⚠️  Errors/Timeouts/Save Errors: {len(errors)}")
-    print(f"📊 Total Attempts: {len(results)}")
+    print(f" Successful Cases: {len(successful)}")
+    print(f"L No Results Found: {len(no_results)}")
+    print(f"�  Errors/Timeouts/Save Errors: {len(errors)}")
+    print(f"=� Total Attempts: {len(results)}")
     print("-"*60)
     
     if successful:
         print("\nSuccessful Cases:")
         for r in successful[:10]:  # Show first 10
-            print(f"  • {r['case_number']}")
+            print(f"  {r['case_number']}")
         if len(successful) > 10:
             print(f"  ... and {len(successful) - 10} more")
     
@@ -361,21 +361,6 @@ async def main():
         manage_processed_data()
         log.info("="*60)
         
-        # Fetch job from API
-        job_config = fetch_job_from_api()
-        
-        if not job_config:
-            log.info("="*60)
-            log.info("NO MORE JOBS IN QUEUE - SCRAPER SHUTTING DOWN")
-            log.info("="*60)
-            break
-        
-        # Store original job config for API calls
-        original_config = dict(job_config)
-        api_client = ApiClient()
-        
-        # Normalize config for scraping
-        config = normalize_config_from_api(job_config)
         
         log.info("="*60)
         log.info("STARTING VIRGINIA COURT SCRAPER")
@@ -406,25 +391,11 @@ async def main():
         grouped_results = []
         try:
             grouped_results = group_and_merge_json_files(JSON_DIR)
-            log.info(f"✅ Successfully created {len(grouped_results)} grouped records")
-            log.info(f"📁 Grouped files saved to: {os.path.join(OUTPUT_DIR, 'groupeddata')}")
+            log.info(f" Successfully created {len(grouped_results)} grouped records")
+            log.info(f"=� Grouped files saved to: {os.path.join(OUTPUT_DIR, 'groupeddata')}")
         except Exception as e:
             log.error(f"Error during grouping: {e}")
         
-        # Insert grouped records into MongoDB
-        if grouped_results:
-            log.info("\n" + "="*60)
-            log.info("INSERTING RECORDS INTO DATABASE")
-            log.info("="*60)
-            
-            try:
-                insert_response = api_client.insert_records(grouped_results)
-                log.info(f"✅ Insert API Response: {insert_response}")
-                inserted_count = insert_response.get('body', {}).get('insertedCount', 0)
-                log.info(f"✅ Inserted {inserted_count} records (from {len(grouped_results)} grouped records)")
-            except Exception as e:
-                log.error(f"❌ Error inserting records: {e}")
-                error_occurred = True
         
         # Handle error recovery or completion
         if error_occurred:
@@ -445,10 +416,10 @@ async def main():
             
             try:
                 add_response = api_client.add_job_to_queue(recovery_job)
-                log.info(f"✅ Add Job API Response: {add_response}")
-                log.info(f"📝 Job added back to queue starting at docket: {recovery_job['docketNumber']}")
+                log.info(f" Add Job API Response: {add_response}")
+                log.info(f"=� Job added back to queue starting at docket: {recovery_job['docketNumber']}")
             except Exception as e:
-                log.error(f"❌ Error adding job back to queue: {e}")
+                log.error(f"L Error adding job back to queue: {e}")
         
         else:
             # Job completed successfully - update docket number
@@ -465,10 +436,25 @@ async def main():
                     docket_year=original_config.get("docketYear"),
                     docket_type=original_config.get("docketType")
                 )
-                log.info(f"✅ Update API Response: {update_response}")
-                log.info(f"✅ Updated last successful docket to: {str(last_successful_number).zfill(6)}")
+                log.info(f" Update API Response: {update_response}")
+                log.info(f" Updated last successful docket to: {str(last_successful_number).zfill(6)}")
             except Exception as e:
-                log.error(f"❌ Error updating docket number: {e}")
+                log.error(f"L Error updating docket number: {e}")
+        
+        # Insert grouped records into MongoDB
+        if grouped_results:
+            log.info("\n" + "="*60)
+            log.info("INSERTING RECORDS INTO DATABASE")
+            log.info("="*60)
+            
+            try:
+                insert_response = api_client.insert_records(grouped_results)
+                log.info(f" Insert API Response: {insert_response}")
+                inserted_count = insert_response.get('body', {}).get('insertedCount', 0)
+                log.info(f" Inserted {inserted_count} records (from {len(grouped_results)} grouped records)")
+            except Exception as e:
+                log.error(f"L Error inserting records: {e}")
+                error_occurred = True
         
         log.info("="*60)
         log.info("JOB COMPLETED - PREPARING FOR NEXT JOB")
@@ -479,7 +465,7 @@ async def main():
         
         if error_occurred:
             # Case 1: Error occurred, we made add_job_to_queue API call
-            log.info("🔴 Error occurred in job - VPN reconnection required")
+            log.info("=4 Error occurred in job - VPN reconnection required")
             needs_vpn_reconnect = True
         elif should_reconnect_vpn():
             # Case 2: Time limit reached (successful jobs running continuously)
@@ -490,9 +476,9 @@ async def main():
             reconnect_vpn_if_needed()
         else:
             elapsed = (time.time() - last_vpn_reconnect_time) / 60
-            log.info(f"ℹ️  VPN reconnection not needed (elapsed: {elapsed:.1f} minutes)")
+            log.info(f"9  VPN reconnection not needed (elapsed: {elapsed:.1f} minutes)")
         
-        log.info("🔄 Fetching next job from queue...")
+        log.info("= Fetching next job from queue...")
         
         # Small delay before next job
         await asyncio.sleep(2)
@@ -504,10 +490,10 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        log.warning("\n\n⚠️  Scraping interrupted by user (Ctrl+C)")
+        log.warning("\n\n�  Scraping interrupted by user (Ctrl+C)")
         print("\nGracefully shutting down...")
     except Exception as e:
-        log.error(f"\n\n🚨 Fatal error occurred: {e}")
+        log.error(f"\n\n=� Fatal error occurred: {e}")
         raise
     finally:
         log.info("\n" + "="*60)
