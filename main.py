@@ -109,51 +109,51 @@ def ensure_directories(base_output_dir):
     global HTML_DIR, JSON_DIR
     HTML_DIR = os.path.join(base_output_dir, "data","htmldata")
     JSON_DIR = os.path.join(base_output_dir, "data","jsondata")
-    os.makedirs(HTML_DIR, exist_ok=True)
-    os.makedirs(JSON_DIR, exist_ok=True)
+    # os.makedirs(HTML_DIR, exist_ok=True)
+    # os.makedirs(JSON_DIR, exist_ok=True)
     log.info(f"Output directories ready: {HTML_DIR}, {JSON_DIR}")
 
-# def manage_processed_data():
-#     """
-#     Move files from groupeddata to processeddata before starting new job
-#     This prevents duplicate insertions from previous runs
-#     """
-#     import shutil
+def manage_processed_data():
+    """
+    Move files from groupeddata to processeddata before starting new job
+    This prevents duplicate insertions from previous runs
+    """
+    import shutil
     
-#     grouped_dir = os.path.join(OUTPUT_DIR, "groupeddata")
-#     processed_dir = os.path.join(OUTPUT_DIR, "processeddata")
+    grouped_dir = os.path.join(OUTPUT_DIR, "data","groupeddata")
+    processed_dir = os.path.join(OUTPUT_DIR, "data","processeddata")
     
-#     # Create processeddata directory if it doesn't exist
-#     os.makedirs(processed_dir, exist_ok=True)
+    # Create processeddata directory if it doesn't exist
+    os.makedirs(processed_dir, exist_ok=True)
     
-#     # Check if groupeddata exists and has files
-#     if os.path.exists(grouped_dir):
-#         files = [f for f in os.listdir(grouped_dir) if f.endswith('.json')]
+    # Check if groupeddata exists and has files
+    if os.path.exists(grouped_dir):
+        files = [f for f in os.listdir(grouped_dir) if f.endswith('.json')]
         
-#         if files:
-#             log.info(f"Found {len(files)} files in groupeddata folder")
-#             log.info("Moving files to processeddata folder...")
+        if files:
+            log.info(f"Found {len(files)} files in groupeddata folder")
+            log.info("Moving files to processeddata folder...")
             
-#             # Move each file to processeddata
-#             for filename in files:
-#                 src = os.path.join(grouped_dir, filename)
-#                 dst = os.path.join(processed_dir, filename)
+            # Move each file to processeddata
+            for filename in files:
+                src = os.path.join(grouped_dir, filename)
+                dst = os.path.join(processed_dir, filename)
                 
-#                 # If file already exists in processeddata, add timestamp to avoid overwrite
-#                 if os.path.exists(dst):
-#                     from datetime import datetime
-#                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-#                     name, ext = os.path.splitext(filename)
-#                     dst = os.path.join(processed_dir, f"{name}_{timestamp}{ext}")
+                # If file already exists in processeddata, add timestamp to avoid overwrite
+                if os.path.exists(dst):
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    name, ext = os.path.splitext(filename)
+                    dst = os.path.join(processed_dir, f"{name}_{timestamp}{ext}")
                 
-#                 shutil.move(src, dst)
-#                 log.info(f"  Moved: {filename}")
+                shutil.move(src, dst)
+                log.info(f"  Moved: {filename}")
             
-#             log.info(f" Successfully moved {len(files)} files to processeddata")
-#         else:
-#             log.info("No files found in groupeddata folder")
-#     else:
-#         log.info("groupeddata folder does not exist yet")
+            log.info(f" Successfully moved {len(files)} files to processeddata")
+        else:
+            log.info("No files found in groupeddata folder")
+    else:
+        log.info("groupeddata folder does not exist yet")
 
 
 def pad_3_digits(value):

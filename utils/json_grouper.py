@@ -118,7 +118,7 @@ def group_and_merge_json_files(json_dir: str, output_dir: str = None) -> List[Di
     """
     if output_dir is None:
         parent_dir = os.path.dirname(json_dir)
-        output_dir = os.path.join(parent_dir,"data", "groupeddata")
+        output_dir = os.path.join(parent_dir, "groupeddata")
     
     os.makedirs(output_dir, exist_ok=True)
     
